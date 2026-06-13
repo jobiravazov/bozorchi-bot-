@@ -2,10 +2,21 @@ require('dotenv').config();
 const { Telegraf, Markup } = require('telegraf');
 const admin = require('firebase-admin');
 
-// ── Firebase ──
-const serviceAccount = require('./serviceAccount.json');
+// ── Firebase — env orqali ──
+let firebaseCredential;
+
+if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+  // Render da — JSON string sifatida
+  firebaseCredential = admin.credential.cert(
+    JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
+  );
+} else {
+  // Lokal — fayl orqali
+  firebaseCredential = admin.credential.cert(require('./serviceAccount.json'));
+}
+
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
+  credential: firebaseCredential,
   databaseURL: process.env.FIREBASE_URL
 });
 const db = admin.database();
@@ -49,7 +60,6 @@ function cancelMenu() {
   return Markup.keyboard([['❌ Bekor qilish']]).resize();
 }
 
-// ── Holat tozalash ──
 async function clearState(userId) {
   await dbSet(`states/${userId}`, { step: 'main' });
 }
@@ -100,12 +110,8 @@ bot.command('yangidokon', async (ctx) => {
   );
 });
 
-// ── /dokon (eski) — yangi buyruqga yo'naltirish ──
 bot.command('dokon', async (ctx) => {
-  return ctx.reply(
-    `ℹ️ Yangi do'kon ochish uchun /yangidokon buyrug'ini yuboring.`,
-    mainMenu()
-  );
+  return ctx.reply(`ℹ️ Yangi do'kon ochish uchun /yangidokon buyrug'ini yuboring.`, mainMenu());
 });
 
 // ── Matn xabarlari ──
@@ -113,7 +119,6 @@ bot.on('text', async (ctx) => {
   const userId = ctx.from.id;
   const text = ctx.message.text;
 
-  // Bekor qilish — istalgan bosqichda
   if (text === '❌ Bekor qilish') {
     await clearState(userId);
     return ctx.reply('↩️ Bekor qilindi.', mainMenu());
@@ -122,10 +127,8 @@ bot.on('text', async (ctx) => {
   const stateSnap = await dbGet(`states/${userId}`);
   const state = stateSnap.val();
 
-  // Agar holat yo'q yoki main — menyu tugmalarini tekshir
   if (!state || state.step === 'main' || state.step === 'registered') {
 
-    // Do'konlarim
     if (text === '🏪 Do\'konlarim') {
       const shops = await getUserShops(userId);
       if (!shops.length) {
@@ -142,7 +145,6 @@ bot.on('text', async (ctx) => {
       );
     }
 
-    // Buyurtmalar
     if (text === '📦 Buyurtmalar') {
       const shops = await getUserShops(userId);
       if (!shops.length) {
@@ -182,7 +184,6 @@ bot.on('text', async (ctx) => {
       return;
     }
 
-    // Kabinet
     if (text === '🗂 Kabinet') {
       return ctx.reply(
         `🗂 *Kabinet*\n\nDo'konni boshqarish, takliflar va statistika:\n\n` +
@@ -191,10 +192,9 @@ bot.on('text', async (ctx) => {
       );
     }
 
-    return; // Noma'lum matn — e'tiborsiz
+    return;
   }
 
-  // ── 1. Ism familiya ──
   if (state.step === 'waiting_fullname') {
     const trimmed = text.trim();
     if (trimmed.length < 3 || trimmed.length > 60) {
@@ -214,7 +214,6 @@ bot.on('text', async (ctx) => {
     );
   }
 
-  // ── 2. Telefon raqam ──
   if (state.step === 'waiting_phone') {
     const phone = text.replace(/\D/g, '');
     if (phone.length < 9 || phone.length > 13) {
@@ -228,7 +227,6 @@ bot.on('text', async (ctx) => {
     );
   }
 
-  // ── 3. Do'kon nomi ──
   if (state.step === 'waiting_shop_name') {
     const trimmed = text.trim();
     if (trimmed.length < 2 || trimmed.length > 50) {
@@ -248,7 +246,6 @@ bot.on('text', async (ctx) => {
     );
   }
 
-  // ── 4. Do'kon turi ──
   if (state.step === 'waiting_shop_type') {
     let shopType = null;
     if (text === '🛍 Tovar sotish') shopType = 'tovar';
@@ -263,7 +260,6 @@ bot.on('text', async (ctx) => {
     const shopName = state.pendingShopName;
     const slug = transliterate(shopName);
 
-    // Slug tekshirish
     const existingSnap = await dbGet('shops');
     if (existingSnap.exists()) {
       const exists = Object.values(existingSnap.val()).find(s => s.slug === slug);
@@ -312,7 +308,6 @@ bot.action(/reject_(.+?)_(.+)/, async (ctx) => {
   await ctx.editMessageText(ctx.callbackQuery.message.text + '\n\n❌ *RAD ETILDI*', { parse_mode: 'Markdown' });
 });
 
-// ── Yordamchi funksiyalar ──
 function formatPrice(n) {
   return Number(n).toLocaleString('uz-UZ');
 }
