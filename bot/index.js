@@ -337,6 +337,14 @@ bot.launch().then(() => {
 }).catch(err => {
   console.error('❌ Bot xatosi:', err);
 });
-
+// Render uchun HTTP server
+const http = require('http');
+const PORT = process.env.PORT || 3000;
+http.createServer((req, res) => {
+  res.writeHead(200);
+  res.end('Bozorchi bot ishlayapti!');
+}).listen(PORT, () => {
+  console.log(`Server ${PORT} portda ishlamoqda`);
+});
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
